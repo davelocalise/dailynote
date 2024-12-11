@@ -2,8 +2,8 @@
 /*
 Plugin Name: Daily Note Summary
 Description: Combines microposts into a daily summary post.
-Version: 1.0
-Author: Your Name
+Version: 1.1
+Author: Dave Briggs and team
 */
 
 if (!defined('ABSPATH')) {
@@ -41,14 +41,25 @@ function render_daily_note_summary_widget() {
 add_action('wp_ajax_run_daily_note_script', 'run_daily_note_script');
 
 function run_daily_note_script() {
-    global $wpdb;
+    
+    $category_name = 'daily note';
+
+    // Get the user ID for the username 'davebriggs'
+    $user = get_user_by('login', 'davebriggs');
+    $author_id = $user ? $user->ID : get_current_user_id();
 
     $microposts = get_posts([
         'post_type' => 'micropost',
         'meta_query' => [
+            'relation' => 'OR',
             [
                 'key' => '_included_in_daily_note',
-                'compare' => 'NOT EXISTS',
+                'compare' => 'NOT EXISTS', // Checks if the meta key does not exist
+            ],
+            [
+                'key' => '_included_in_daily_note',
+                'value' => '',
+                'compare' => '=', // Checks if the meta key exists but has an empty value
             ],
         ],
         'orderby' => 'date',
@@ -61,9 +72,63 @@ function run_daily_note_script() {
     }
 
     $content = '';
-    $tags = [];
+    $all_tags = [];
+    $processed_ids = [];
+    $micropost_count = 0; // Count how many microposts we add
 
     foreach ($microposts as $micropost) {
-        $content .= '<div>' . apply_filters('the_content', $micropost->post_content) . '<br><a href="' . get_permalink($micropost->ID) . '">Original post</a></div><hr>';        
+       
+        // Build the content for each micropost
+        $content .= '<h3>' . $micropost->post_title . '</h3>';
+        $content .= '<div>' . apply_filters('the_content',$micropost->post_content) . '</div>';
+        $content .= '<p><a href="' . get_permalink($micropost->ID) . '">Original post<span style="display:none"> - '.$micropost->post_title.'</span></a></p>';
+        $content .= '<hr>';
+        
+        // Collect tags for the post
+        $post_tags = wp_get_post_tags($micropost->ID, ['fields' => 'names']);
+        if (!empty($post_tags)) {
+            $all_tags = array_merge($all_tags, $post_tags);
+        }
+        
+        // Mark the micropost as processed
+        $processed_ids[] = $micropost->ID;
+        $micropost_count++;
+    }
+    
+    // Get unique tags
+    $all_tags = array_unique($all_tags);
+    
+    // Get or create the category ID
+    $category_id = get_cat_ID($category_name);
+    if (!$category_id) {
+        $category_id = wp_create_category($category_name);
+    }
 
-        $tags = array_merge($tags, wp_get_post_tags($micropost->ID, ['fields
+    // Prepare the new daily note post
+    $new_post = [
+        'post_title'   => '📅 Daily Note: ' . date('F j, Y'),
+        'post_content' => $content,
+        'post_status'  => 'draft',
+        'post_author'  => $author_id,
+        'post_category' => [$category_id],
+        'tags_input'   => $all_tags,
+    ];
+    
+    // Insert the new post
+    $new_post_id = wp_insert_post($new_post);
+    
+    // Update each micropost as processed
+    foreach ($processed_ids as $id) {
+        update_post_meta($id, '_included_in_daily_note', $new_post_id);
+    }
+    
+    // Store the last run time and the count of microposts
+    update_option('daily_note_last_run', current_time('timestamp'));
+    update_option('daily_note_last_run_data', ["count"=>$micropost_count,"post_id"=>$new_post_id]);
+    
+    if (!empty($new_post_id)) {
+        return "Post created with ".$micropost_count." microposts incorporated.";
+    } else {
+        return "Problem creating post.";
+    }
+}
