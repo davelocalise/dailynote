@@ -2,7 +2,7 @@
 /*
 Plugin Name: Daily Note Summary
 Description: Combines microposts into a daily summary post.
-Version: 1.1
+Version: 1.2
 Author: Dave Briggs and team
 */
 
@@ -79,9 +79,9 @@ function run_daily_note_script() {
     foreach ($microposts as $micropost) {
        
         // Build the content for each micropost
-        $content .= '<h3>' . $micropost->post_title . '</h3>';
+        if (!empty($micropost->post_title)) $content .= '<h3>' . $micropost->post_title . '</h3>';
         $content .= '<div>' . apply_filters('the_content',$micropost->post_content) . '</div>';
-        $content .= '<p><a href="' . get_permalink($micropost->ID) . '">Original post<span style="display:none"> - '.$micropost->post_title.'</span></a></p>';
+        $content .= '<p><a href="' . get_permalink($micropost->ID) . '">#<span style="display:none"> - micropost '.$micropost->ID.'</span></a></p>';
         $content .= '<hr>';
         
         // Collect tags for the post
@@ -127,8 +127,8 @@ function run_daily_note_script() {
     update_option('daily_note_last_run_data', ["count"=>$micropost_count,"post_id"=>$new_post_id]);
     
     if (!empty($new_post_id)) {
-        return "Post created with ".$micropost_count." microposts incorporated.";
+        return json_encode(["message" => "Post created with ".$micropost_count." microposts incorporated."]);
     } else {
-        return "Problem creating post.";
+        return json_encode(["message" => "Problem creating post."]);
     }
 }
