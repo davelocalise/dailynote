@@ -2,7 +2,7 @@
 /*
 Plugin Name: Daily Note Summary
 Description: Combines microposts into a daily summary post.
-Version: 1.2
+Version: 1.3
 Author: Dave Briggs and team
 */
 
@@ -42,7 +42,7 @@ add_action('wp_ajax_run_daily_note_script', 'run_daily_note_script');
 
 function run_daily_note_script() {
     
-    $category_name = 'daily note';
+    $category_name = 'Daily notes';
 
     // Get the user ID for the username 'davebriggs'
     $user = get_user_by('login', 'davebriggs');
